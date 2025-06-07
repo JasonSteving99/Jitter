@@ -1,0 +1,269 @@
+import inspect
+import sys
+from collections.abc import Generator
+from contextlib import contextmanager
+
+from implementation_generator import generate_implementation_for_function
+from replace_impl import replace_function_implementation
+
+
+def extract_call_chain_from_traceback():
+    """
+    Extract the complete call chain from the current NotImplementedError traceback.
+
+    Returns:
+        List of (function, args, kwargs) tuples representing the call chain
+        from the context manager down to where NotImplementedError was raised.
+    """
+    exc_type, exc_value, exc_traceback = sys.exc_info()
+
+    if exc_type is not NotImplementedError:
+        return []
+
+    call_chain = []
+    tb = exc_traceback
+    context_manager_found = False
+
+    # Walk through the traceback to collect all frames
+    frames = []
+    while tb is not None:
+        frames.append(tb.tb_frame)
+        tb = tb.tb_next
+
+    # Process frames in reverse order (from context manager down to error)
+    for i, frame in enumerate(frames):
+        code = frame.f_code
+        func_name = code.co_name
+
+        # Skip frames until we find the context manager
+        if not context_manager_found:
+            if func_name == "not_implemented_handler":
+                context_manager_found = True
+                continue
+            else:
+                continue
+
+        # Skip internal generator machinery
+        if func_name in ("__enter__", "__exit__", "_GeneratorContextManager"):
+            continue
+
+        try:
+            # Get the function object
+            func = _get_function_from_frame(frame)
+            if func is None:
+                continue
+
+            # Extract arguments from the frame
+            args, kwargs = _extract_arguments_from_frame(frame, func)
+
+            call_chain.append((func, args, kwargs))
+
+        except Exception as e:
+            print(f"Warning: Could not extract call info for {func_name}: {e}")
+            continue
+
+    return call_chain
+
+
+def _get_function_from_frame(frame):
+    """Get the function object from a stack frame."""
+    func_name = frame.f_code.co_name
+
+    # Check if it's in locals first (for nested functions)
+    if func_name in frame.f_locals:
+        candidate = frame.f_locals[func_name]
+        if callable(candidate) and hasattr(candidate, "__code__"):
+            if candidate.__code__ is frame.f_code:
+                return candidate
+
+    # Check globals
+    if func_name in frame.f_globals:
+        candidate = frame.f_globals[func_name]
+        if callable(candidate) and hasattr(candidate, "__code__"):
+            if candidate.__code__ is frame.f_code:
+                return candidate
+
+    # For methods, try to reconstruct from self/cls
+    if "self" in frame.f_locals:
+        obj = frame.f_locals["self"]
+        if hasattr(obj, func_name):
+            method = getattr(obj, func_name)
+            if hasattr(method, "__func__") and method.__func__.__code__ is frame.f_code:
+                return method
+            elif hasattr(method, "__code__") and method.__code__ is frame.f_code:
+                return method
+
+    # For class methods
+    if "cls" in frame.f_locals:
+        cls = frame.f_locals["cls"]
+        if hasattr(cls, func_name):
+            method = getattr(cls, func_name)
+            if hasattr(method, "__func__") and method.__func__.__code__ is frame.f_code:
+                return method
+
+    print(f"****ERROR!!!! No function found in frame: {frame}")
+    return None
+
+
+def _extract_arguments_from_frame(frame, func):
+    """Extract the original arguments from a frame using function signature."""
+    try:
+        sig = inspect.signature(func)
+        locals_dict = frame.f_locals
+
+        args = []
+        kwargs = {}
+
+        # Handle bound methods - skip 'self' or 'cls' if present
+        bound_arg = None
+        if "self" in locals_dict and hasattr(func, "__self__"):
+            bound_arg = "self"
+        elif "cls" in locals_dict and hasattr(func, "__self__"):
+            bound_arg = "cls"
+
+        for param_name, param in sig.parameters.items():
+            if param_name == bound_arg:
+                continue  # Skip self/cls for bound methods
+
+            if param_name in locals_dict:
+                value = locals_dict[param_name]
+
+                if param.kind == param.VAR_POSITIONAL:
+                    # *args
+                    if isinstance(value, tuple):
+                        args.extend(value)
+                elif param.kind == param.VAR_KEYWORD:
+                    # **kwargs
+                    if isinstance(value, dict):
+                        kwargs.update(value)
+                else:
+                    # Regular parameter
+                    if param.default == param.empty:
+                        # Required positional argument
+                        args.append(value)
+                    else:
+                        # Optional argument, add as keyword
+                        kwargs[param_name] = value
+
+        return args, kwargs
+
+    except Exception as e:
+        # Fallback: try to guess based on common patterns
+        print(f"Warning: Could not extract signature for {func}: {e}")
+        return [], {}
+
+
+def _rerun_from_unimplemented(call_chain):
+    """Rerun only the top function from the call chain."""
+    if not call_chain:
+        raise ValueError("Cannot rerun empty call chain")
+
+    # Only call the first (top) function - the deterministic nature of programs
+    # will ensure the rest of the call stack is automatically called
+    top_func, top_args, top_kwargs = call_chain[0]
+
+    print(f"  Rerunning top function: {top_func.__name__}")
+    result = top_func(*top_args, **top_kwargs)
+    return result
+
+
+@contextmanager
+def not_implemented_handler(enable_replay: bool = True) -> Generator[None, None, None]:
+    """
+    Context manager that handles NotImplementedError with full call chain replay.
+
+    Args:
+        enable_replay: Whether to enable automatic retry by replaying the call chain
+
+    Usage:
+        with not_implemented_handler():
+            result = some_function_that_might_raise_not_implemented()
+    """
+    try:
+        yield
+
+    except NotImplementedError:
+        while (
+            True
+        ):  # Keep looping until we implement and run every unimplemented function.
+            if not enable_replay:
+                # Just log and re-raise
+                call_chain = extract_call_chain_from_traceback()
+                print("NotImplementedError in call chain:")
+                for i, (func, args, kwargs) in enumerate(call_chain):
+                    print(
+                        f"  {i + 1}. {func.__name__} at {func.__code__.co_filename}:{func.__code__.co_firstlineno}"
+                    )
+                raise
+
+            print("NotImplementedError detected! Extracting call chain for replay...")
+
+            # Extract the complete call chain
+            call_chain = extract_call_chain_from_traceback()
+
+            if not call_chain:
+                print("Could not extract call chain, re-raising original error")
+                raise
+
+            print(f"Extracted call chain with {len(call_chain)} calls:")
+            for i, (func, args, kwargs) in enumerate(call_chain):
+                print(
+                    f"  {i + 1}. {func.__name__}({len(args)} args, {len(kwargs)} kwargs)"
+                )
+
+            # Generate implementation for the failing function (last in call chain)
+            if call_chain:
+                failing_func, _, _ = call_chain[
+                    -1
+                ]  # Last function in chain raised NotImplementedError
+                print(f"Generating implementation for {failing_func.__name__}...")
+                try:
+                    # Generate new implementation
+                    new_code = generate_implementation_for_function(failing_func)
+                    # Replace the function's implementation
+                    replace_function_implementation(failing_func, new_code)
+                    print(
+                        f"Successfully replaced implementation of {failing_func.__name__}"
+                    )
+                except Exception as gen_error:
+                    print(f"Failed to generate/replace implementation: {gen_error}")
+                    raise
+
+            # Rerun the call chain that reached the unimplemented function
+            print("Attempting to rerun call chain that reached unimplemented...")
+            try:
+                result = _rerun_from_unimplemented(call_chain)
+                print("Rerun of call chain succeeded!")
+                return result
+            except NotImplementedError:
+                continue
+
+
+# Usage examples and tests
+if __name__ == "__main__":
+
+    def level_4_function(zzz):
+        raise NotImplementedError("This is also not implemented.")
+
+    def level_3_function(z=10):
+        """The deepest function that raises NotImplementedError."""
+        print(f"In level_3_function with z={z} - raising NotImplementedError")
+        raise NotImplementedError("This feature is not implemented yet")
+
+    def level_2_function(x, y=10):
+        """Middle function that calls level_3."""
+        print(f"In level_2_function with x={x}, y={y}")
+        return level_3_function()
+
+    def level_1_function(name: str, *args, **kwargs):
+        """Top-level function that starts the call chain."""
+        print(f"In level_1_function with name='{name}', args={args}, kwargs={kwargs}")
+        return level_2_function(4242, y=kwargs.get("y", 20))
+
+    print("=== Testing Call Chain Replay ===")
+    try:
+        with not_implemented_handler():
+            result = level_1_function("test", "extra_arg", y=30, extra_arg_debug=True)
+            print(f"Result: {result}")
+    except NotImplementedError:
+        print("Event replay failed!")
