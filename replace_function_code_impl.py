@@ -96,8 +96,8 @@ def _process_new_implementation(
         if line.strip():  # Non-empty line
             if i == 0:  # First line (def statement)
                 processed_lines.append(base_indentation + line.lstrip() + "\n")
-            else:  # Body lines
-                processed_lines.append(base_indentation + "    " + line.lstrip() + "\n")
+            else:  # Body lines - preserve internal indentation structure
+                processed_lines.append(base_indentation + line + "\n")
         else:  # Empty line
             processed_lines.append("\n")
 

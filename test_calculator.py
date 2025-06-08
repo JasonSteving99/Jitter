@@ -23,11 +23,11 @@ def add(a, b):
 def subtract(a, b):
     """
     Subtract the second number from the first number.
-    
+
     Args:
         a (float): The number to subtract from
         b (float): The number to subtract
-        
+
     Returns:
         float: The difference of a and b (a - b)
     """
@@ -37,11 +37,11 @@ def subtract(a, b):
 def multiply(a, b):
     """
     Multiply two numbers together.
-    
+
     Args:
         a (float): The first number
         b (float): The second number
-        
+
     Returns:
         float: The product of a and b
     """
@@ -51,14 +51,14 @@ def multiply(a, b):
 def divide(a, b):
     """
     Divide the first number by the second number.
-    
+
     Args:
         a (float): The dividend (number to be divided)
         b (float): The divisor (number to divide by)
-        
+
     Returns:
         float: The quotient of a and b (a / b)
-        
+
     Raises:
         ZeroDivisionError: If b is zero
     """
@@ -68,11 +68,11 @@ def divide(a, b):
 def power(base, exponent):
     """
     Raise a number to the power of another number.
-    
+
     Args:
         base (float): The base number
         exponent (float): The exponent
-        
+
     Returns:
         float: base raised to the power of exponent
     """
@@ -82,13 +82,13 @@ def power(base, exponent):
 def square_root(n):
     """
     Calculate the square root of a number.
-    
+
     Args:
         n (float): The number to find the square root of
-        
+
     Returns:
         float: The square root of n
-        
+
     Raises:
         ValueError: If n is negative
     """

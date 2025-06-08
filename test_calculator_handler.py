@@ -1,6 +1,7 @@
 import test_calculator
 from with_replay import not_implemented_handler
 
+
 def main():
     # Basic arithmetic formula: (5 + 3) * 2 - 4 / 2 = 14
     result1 = test_calculator.add(5, 3)

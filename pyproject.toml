@@ -5,8 +5,9 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "google-generativeai>=0.8.5",
+    "google-genai>=1.19.0",
     "marimo>=0.13.15",
+    "pydantic>=2.11.5",
 ]
 
 [dependency-groups]
@@ -16,11 +17,15 @@ dev = [
 ]
 
 [tool.ruff]
-line-length = 88
+line-length = 120
 target-version = "py312"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "W", "UP"]
+select = ["E", "F", "I", "N", "W", "UP", "W291", "W293"]
+extend-safe-fixes = [
+    "W291",  # trailing-whitespace: Remove trailing whitespace
+    "W293",  # blank-line-with-whitespace: Remove whitespace from blank lines
+]
 
 [tool.pyright]
 pythonVersion = "3.12"
