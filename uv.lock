@@ -6,6 +6,13 @@ resolution-markers = [
     "python_full_version < '3.13'",
 ]
 
+[manifest]
+members = [
+    "examples",
+    "jitter",
+    "pljam",
+]
+
 [[package]]
 name = "annotated-types"
 version = "0.7.0"
@@ -113,6 +120,17 @@ wheels = [
 ]
 
 [[package]]
+name = "examples"
+version = "0.0.0"
+source = { editable = "examples" }
+dependencies = [
+    { name = "jitter" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "jitter", editable = "src" }]
+
+[[package]]
 name = "google-auth"
 version = "2.40.2"
 source = { registry = "https://pypi.org/simple" }
@@ -209,6 +227,21 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/72/3a/79a912fbd4d8dd6fbb02bf69afd3bb72cf0c729bb3063c6f4498603db17a/jedi-0.19.2.tar.gz", hash = "sha256:4770dc3de41bde3966b02eb84fbcf557fb33cce26ad23da12c742fb50ecb11f0", size = 1231287 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c0/5a/9cac0c82afec3d09ccd97c8b6502d48f165f9124db81b4bcb90b4af974ee/jedi-0.19.2-py2.py3-none-any.whl", hash = "sha256:a8ef22bde8490f57fe5c7681a3c83cb58874daf72b4784de3cce5b6ef6edb5b9", size = 1572278 },
+]
+
+[[package]]
+name = "jitter"
+version = "0.1.0"
+source = { editable = "src" }
+dependencies = [
+    { name = "google-genai" },
+    { name = "pydantic" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "google-genai", specifier = ">=1.19.0" },
+    { name = "pydantic", specifier = ">=2.11.5" },
 ]
 
 [[package]]
@@ -331,27 +364,19 @@ wheels = [
 name = "pljam"
 version = "0.1.0"
 source = { virtual = "." }
-dependencies = [
-    { name = "google-genai" },
-    { name = "marimo" },
-    { name = "pydantic" },
-]
 
 [package.dev-dependencies]
 dev = [
+    { name = "marimo" },
     { name = "pyright" },
     { name = "ruff" },
 ]
 
 [package.metadata]
-requires-dist = [
-    { name = "google-genai", specifier = ">=1.19.0" },
-    { name = "marimo", specifier = ">=0.13.15" },
-    { name = "pydantic", specifier = ">=2.11.5" },
-]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "marimo", specifier = ">=0.13.15" },
     { name = "pyright", specifier = ">=1.1.350" },
     { name = "ruff", specifier = ">=0.6.0" },
 ]

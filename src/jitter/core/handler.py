@@ -3,11 +3,11 @@ import sys
 from collections.abc import Generator
 from contextlib import contextmanager
 
-from confirmation_handler import show_implementation_comparison_and_confirm
-from get_function_info import get_function_lines
-from hot_reload import hot_reload
-from implementation_generator import generate_implementation_for_function
-from replace_function_code_impl import replace_function_implementation
+from jitter.generation.generator import generate_implementation_for_function
+from jitter.generation.ui import show_implementation_comparison_and_confirm
+from jitter.source_manipulation.hot_reload import hot_reload
+from jitter.source_manipulation.inspection import get_function_lines
+from jitter.source_manipulation.replacement import replace_function_implementation
 
 
 def extract_call_chain_from_traceback():

@@ -1,0 +1,14 @@
+[project]
+name = "examples"
+version = "0.0.0"
+description = "Example usages of Jitter"
+requires-python = ">=3.12"
+dependencies = [
+    "jitter",
+]
+
+[tool.uv.sources]
+jitter = { workspace = true }
+
+[tool.uv]
+package = true

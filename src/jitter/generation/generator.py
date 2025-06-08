@@ -5,7 +5,7 @@ from typing import Any, cast
 
 from pydantic import BaseModel, Field
 
-from llm import call_llm
+from jitter.generation.llm import call_llm
 
 
 class ImplementationSuggestion(BaseModel):

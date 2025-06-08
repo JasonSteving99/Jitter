@@ -1,4 +1,4 @@
-from get_function_info import get_function_lines
+from jitter.source_manipulation.inspection import get_function_lines
 
 
 # ANSI color codes for terminal output

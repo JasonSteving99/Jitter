@@ -1,13 +1,13 @@
-import test_calculator
-from with_replay import not_implemented_handler
+from examples.calculator import operations
+from src.jitter.core.handler import not_implemented_handler
 
 
 def main():
     # Basic arithmetic formula: (5 + 3) * 2 - 4 / 2 = 14
-    result1 = test_calculator.add(5, 3)
-    result2 = test_calculator.multiply(result1, 2)
-    result3 = test_calculator.divide(4, 2)
-    final_result = test_calculator.subtract(result2, result3)
+    result1 = operations.add(5, 3)
+    result2 = operations.multiply(result1, 2)
+    result3 = operations.divide(4, 2)
+    final_result = operations.subtract(result2, result3)
     print(f"Formula result: {final_result}")
 
     # Another formula: sqrt(16) + 2^3 = 12

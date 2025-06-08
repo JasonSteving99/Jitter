@@ -1,8 +1,7 @@
 import re
 from pathlib import Path
 
-from get_function_info import FunctionLocation, get_function_lines
-from test_sample import sample_function
+from jitter.source_manipulation.inspection import FunctionLocation, get_function_lines
 
 
 def replace_function_implementation(
@@ -121,6 +120,10 @@ if __name__ == "__main__":
     print(
         "then call replace_function_implementation() with a complete function definition"
     )
+
+    def sample_function(x: int, y: str) -> str:
+        """A sample function."""
+        raise NotImplementedError("This function is not implemented yet")
 
     # Usage example:
     location = get_function_lines(sample_function)
