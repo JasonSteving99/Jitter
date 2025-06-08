@@ -93,18 +93,3 @@ def square_root(n):
         ValueError: If n is negative
     """
     raise NotImplementedError("Square root operation not yet implemented")
-
-
-def main():
-    # Basic arithmetic formula: (5 + 3) * 2 - 4 / 2 = 14
-    result1 = add(5, 3)
-    result2 = multiply(result1, 2)
-    result3 = divide(4, 2)
-    final_result = subtract(result2, result3)
-    print(f"Formula result: {final_result}")
-
-    # Another formula: sqrt(16) + 2^3 = 12
-    sqrt_result = square_root(16)
-    power_result = power(2, 3)
-    final_result2 = add(sqrt_result, power_result)
-    print(f"Second formula result: {final_result2}")
