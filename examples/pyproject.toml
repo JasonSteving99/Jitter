@@ -8,7 +8,4 @@ dependencies = [
 ]
 
 [tool.uv.sources]
-jitter = { workspace = true }
-
-[tool.uv]
-package = true
+jitter = { path = "..", editable = true }

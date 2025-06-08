@@ -68,7 +68,9 @@ def replace_function_implementation(
 
 def _get_indentation(line: str) -> str:
     """Extract the indentation from a line of code."""
-    return re.match(r"^(\s*)", line).group(1) if line else ""
+    if line and (match := re.match(r"^(\s*)", line)):
+        return match.group(1)
+    return ""
 
 
 def _process_new_implementation(

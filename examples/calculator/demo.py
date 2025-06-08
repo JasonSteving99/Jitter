@@ -1,5 +1,6 @@
-from examples.calculator import operations
-from src.jitter.core.handler import not_implemented_handler
+from calculator import operations
+
+from jitter.core.handler import not_implemented_handler
 
 
 def main():
