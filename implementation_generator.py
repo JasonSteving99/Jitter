@@ -55,8 +55,7 @@ def level_3_function(z=10):
                 param_parts.append(param_name)
         param_str = ", ".join(param_parts)
 
-        return f'''
-def {func_name}({param_str}):
+        return f'''def {func_name}({param_str}):
     """Generated implementation for {func_name}."""
     print(f"Generated implementation: {func_name} called")
     return f"Generated result from {func_name}"

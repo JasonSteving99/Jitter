@@ -3,8 +3,11 @@ import sys
 from collections.abc import Generator
 from contextlib import contextmanager
 
+from confirmation_handler import show_implementation_comparison_and_confirm
+from get_function_info import get_function_lines
+from hot_reload import hot_reload
 from implementation_generator import generate_implementation_for_function
-from replace_impl import replace_function_implementation
+from replace_function_code_impl import replace_function_implementation
 
 
 def extract_call_chain_from_traceback():
@@ -59,7 +62,7 @@ def extract_call_chain_from_traceback():
             call_chain.append((func, args, kwargs))
 
         except Exception as e:
-            print(f"Warning: Could not extract call info for {func_name}: {e}")
+            print(f"[Jitter] Warning: Could not extract call info for {func_name}: {e}")
             continue
 
     return call_chain
@@ -101,7 +104,7 @@ def _get_function_from_frame(frame):
             if hasattr(method, "__func__") and method.__func__.__code__ is frame.f_code:
                 return method
 
-    print(f"****ERROR!!!! No function found in frame: {frame}")
+    print(f"[Jitter] ****ERROR!!!! No function found in frame: {frame}")
     return None
 
 
@@ -149,7 +152,7 @@ def _extract_arguments_from_frame(frame, func):
 
     except Exception as e:
         # Fallback: try to guess based on common patterns
-        print(f"Warning: Could not extract signature for {func}: {e}")
+        print(f"[Jitter] Warning: Could not extract signature for {func}: {e}")
         return [], {}
 
 
@@ -162,8 +165,21 @@ def _rerun_from_unimplemented(call_chain):
     # will ensure the rest of the call stack is automatically called
     top_func, top_args, top_kwargs = call_chain[0]
 
-    print(f"  Rerunning top function: {top_func.__name__}")
-    result = top_func(*top_args, **top_kwargs)
+    # Get fresh function reference after potential hot reload
+    func_module = inspect.getmodule(top_func)
+    if func_module is not None:
+        fresh_func = getattr(func_module, top_func.__name__, top_func)
+    else:
+        fresh_func = top_func
+
+    print(f"[Jitter] Rerunning top function: {fresh_func.__name__}")
+    print("\n" + "─" * 60)
+    print("PROGRAM OUTPUT:")
+    print("─" * 60, end="\n\n")
+    result = fresh_func(*top_args, **top_kwargs)
+    print("\n" + ("─" * 60))
+    print("END PROGRAM OUTPUT")
+    print("─" * 60)
     return result
 
 
@@ -189,51 +205,74 @@ def not_implemented_handler(enable_replay: bool = True) -> Generator[None, None,
             if not enable_replay:
                 # Just log and re-raise
                 call_chain = extract_call_chain_from_traceback()
-                print("NotImplementedError in call chain:")
+                print("\n═══ [Jitter] NotImplementedError in call chain ═══")
                 for i, (func, args, kwargs) in enumerate(call_chain):
                     print(
                         f"  {i + 1}. {func.__name__} at {func.__code__.co_filename}:{func.__code__.co_firstlineno}"
                     )
+                print("═" * 50)
                 raise
 
-            print("NotImplementedError detected! Extracting call chain for replay...")
+            print("\n╔══════════════════════════════════════════════════╗")
+            print("║ NotImplementedError detected! Extracting call   ║")
+            print("║ chain for replay...                             ║")
+            print("╚══════════════════════════════════════════════════╝")
 
             # Extract the complete call chain
             call_chain = extract_call_chain_from_traceback()
 
             if not call_chain:
-                print("Could not extract call chain, re-raising original error")
+                print("[Jitter] Could not extract call chain, re-raising original error")
                 raise
 
-            print(f"Extracted call chain with {len(call_chain)} calls:")
+            print(f"\n┌─ [Jitter] Extracted call chain with {len(call_chain)} calls ─┐")
             for i, (func, args, kwargs) in enumerate(call_chain):
                 print(
-                    f"  {i + 1}. {func.__name__}({len(args)} args, {len(kwargs)} kwargs)"
+                    f"│  {i + 1}. {func.__name__}({len(args)} args, {len(kwargs)} kwargs)"
                 )
+            print("└" + "─" * (len(f"Extracted call chain with {len(call_chain)} calls") + 20) + "┘")
 
             # Generate implementation for the failing function (last in call chain)
             if call_chain:
                 failing_func, _, _ = call_chain[
                     -1
                 ]  # Last function in chain raised NotImplementedError
-                print(f"Generating implementation for {failing_func.__name__}...")
+                print(f"\n>>> Generating implementation for {failing_func.__name__}...")
                 try:
                     # Generate new implementation
                     new_code = generate_implementation_for_function(failing_func)
-                    # Replace the function's implementation
-                    replace_function_implementation(failing_func, new_code)
+
+                    # Show comparison and get user confirmation
+                    if not show_implementation_comparison_and_confirm(
+                        failing_func, new_code
+                    ):
+                        print("[Jitter] User declined replacement. Re-raising original error.")
+                        raise
+
+                    # Get function location info
+                    location = get_function_lines(failing_func)
+                    # Replace the function's implementation in source file
+                    replace_function_implementation(location, new_code)
+
+                    # Hot reload the module to get the updated function
+                    func_module = inspect.getmodule(failing_func)
+                    if func_module is None:
+                        raise RuntimeError(f"Could not get module for function {failing_func.__name__}")
+                    hot_reload(func_module)
+
                     print(
-                        f"Successfully replaced implementation of {failing_func.__name__}"
+                        f"\n✓ Successfully replaced implementation of "
+                        f"{failing_func.__name__}"
                     )
                 except Exception as gen_error:
-                    print(f"Failed to generate/replace implementation: {gen_error}")
+                    print(f"[Jitter] Failed to generate/replace implementation: {gen_error}")
                     raise
 
             # Rerun the call chain that reached the unimplemented function
-            print("Attempting to rerun call chain that reached unimplemented...")
+            print("\n▶ Attempting to rerun call chain that reached unimplemented...")
             try:
                 result = _rerun_from_unimplemented(call_chain)
-                print("Rerun of call chain succeeded!")
+                print("✓ Rerun of call chain succeeded!")
                 return result
             except NotImplementedError:
                 continue
@@ -260,10 +299,12 @@ if __name__ == "__main__":
         print(f"In level_1_function with name='{name}', args={args}, kwargs={kwargs}")
         return level_2_function(4242, y=kwargs.get("y", 20))
 
-    print("=== Testing Call Chain Replay ===")
+    print("\n" + "=" * 50)
+    print("    Testing Call Chain Replay")
+    print("=" * 50)
     try:
         with not_implemented_handler():
             result = level_1_function("test", "extra_arg", y=30, extra_arg_debug=True)
-            print(f"Result: {result}")
+            print(f"\nFinal Result: {result}")
     except NotImplementedError:
-        print("Event replay failed!")
+        print("\n❌ Event replay failed!")
