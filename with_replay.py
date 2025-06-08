@@ -198,32 +198,30 @@ def not_implemented_handler(enable_replay: bool = True) -> Generator[None, None,
     try:
         yield
 
-    except NotImplementedError:
+    except NotImplementedError as e:
+        # Extract the complete call chain from this original exception.
+        call_chain = extract_call_chain_from_traceback()
+
         while (
             True
         ):  # Keep looping until we implement and run every unimplemented function.
             if not enable_replay:
-                # Just log and re-raise
-                call_chain = extract_call_chain_from_traceback()
                 print("\n═══ [Jitter] NotImplementedError in call chain ═══")
                 for i, (func, args, kwargs) in enumerate(call_chain):
                     print(
                         f"  {i + 1}. {func.__name__} at {func.__code__.co_filename}:{func.__code__.co_firstlineno}"
                     )
                 print("═" * 50)
-                raise
+                raise e
 
             print("\n╔══════════════════════════════════════════════════╗")
             print("║ NotImplementedError detected! Extracting call   ║")
             print("║ chain for replay...                             ║")
             print("╚══════════════════════════════════════════════════╝")
 
-            # Extract the complete call chain
-            call_chain = extract_call_chain_from_traceback()
-
             if not call_chain:
                 print("[Jitter] Could not extract call chain, re-raising original error")
-                raise
+                raise e
 
             print(f"\n┌─ [Jitter] Extracted call chain with {len(call_chain)} calls ─┐")
             for i, (func, args, kwargs) in enumerate(call_chain):
@@ -247,7 +245,7 @@ def not_implemented_handler(enable_replay: bool = True) -> Generator[None, None,
                         failing_func, new_code
                     ):
                         print("[Jitter] User declined replacement. Re-raising original error.")
-                        raise
+                        raise e
 
                     # Get function location info
                     location = get_function_lines(failing_func)
@@ -257,7 +255,7 @@ def not_implemented_handler(enable_replay: bool = True) -> Generator[None, None,
                     # Hot reload the module to get the updated function
                     func_module = inspect.getmodule(failing_func)
                     if func_module is None:
-                        raise RuntimeError(f"Could not get module for function {failing_func.__name__}")
+                        raise RuntimeError(f"Could not get module for function {failing_func.__name__}") from e
                     hot_reload(func_module)
 
                     print(
@@ -266,7 +264,7 @@ def not_implemented_handler(enable_replay: bool = True) -> Generator[None, None,
                     )
                 except Exception as gen_error:
                     print(f"[Jitter] Failed to generate/replace implementation: {gen_error}")
-                    raise
+                    raise gen_error
 
             # Rerun the call chain that reached the unimplemented function
             print("\n▶ Attempting to rerun call chain that reached unimplemented...")
@@ -274,7 +272,10 @@ def not_implemented_handler(enable_replay: bool = True) -> Generator[None, None,
                 result = _rerun_from_unimplemented(call_chain)
                 print("✓ Rerun of call chain succeeded!")
                 return result
-            except NotImplementedError:
+            except NotImplementedError as rerun_error:
+                e = rerun_error
+                # Extract the complete call chain from this latest exception.
+                call_chain = extract_call_chain_from_traceback()
                 continue
 
 
