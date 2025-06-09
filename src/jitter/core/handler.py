@@ -3,7 +3,7 @@ import sys
 from collections.abc import Generator
 from contextlib import contextmanager
 
-from jitter.generation.generator import generate_implementation_for_function
+from jitter.generation.generator import generate_implementation_for_function, UserDeclinedImplementation
 from jitter.generation.ui import show_implementation_comparison_and_confirm
 from jitter.source_manipulation.hot_reload import hot_reload
 from jitter.source_manipulation.inspection import get_function_lines
@@ -237,15 +237,8 @@ def not_implemented_handler(enable_replay: bool = True) -> Generator[None, None,
                 ]  # Last function in chain raised NotImplementedError
                 print(f"\n>>> Generating implementation for {failing_func.__name__}...")
                 try:
-                    # Generate new implementation
+                    # Generate new implementation (user confirmation handled inside)
                     new_code = generate_implementation_for_function(failing_func)
-
-                    # Show comparison and get user confirmation
-                    if not show_implementation_comparison_and_confirm(
-                        failing_func, new_code
-                    ):
-                        print("[Jitter] User declined replacement. Re-raising original error.")
-                        raise e
 
                     # Get function location info
                     location = get_function_lines(failing_func)
@@ -262,6 +255,9 @@ def not_implemented_handler(enable_replay: bool = True) -> Generator[None, None,
                         f"\n✓ Successfully replaced implementation of "
                         f"{failing_func.__name__}"
                     )
+                except UserDeclinedImplementation:
+                    print("[Jitter] User declined replacement. Re-raising original error.")
+                    raise e
                 except Exception as gen_error:
                     print(f"[Jitter] Failed to generate/replace implementation: {gen_error}")
                     raise gen_error

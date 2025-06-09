@@ -6,6 +6,12 @@ from typing import Any, cast
 from pydantic import BaseModel, Field
 
 from jitter.generation.llm import call_llm
+from jitter.generation.ui import show_implementation_comparison_and_confirm
+
+
+class UserDeclinedImplementation(Exception):
+    """Raised when user declines to implement a function."""
+    pass
 
 
 class ImplementationSuggestion(BaseModel):
@@ -92,61 +98,16 @@ The implementation should be practical and follow Python best practices."""
         return prompt_user_for_implementation(func)
 
 
-def prompt_user_for_acceptance_or_edit(suggested_impl: str, func: Callable[..., Any]) -> str:
-    """
-    Present the LLM suggestion to the user and allow them to accept or edit it.
-
-    Args:
-        suggested_impl: The LLM-generated implementation
-        func: The original function
-
-    Returns:
-        Final implementation (either accepted suggestion or user-edited version)
-    """
-    func_name = func.__name__
-
-    print(f"\nLLM suggested implementation for '{func_name}':")
-    print("=" * 50)
-    print(suggested_impl)
-    print("=" * 50)
-
-    while True:
-        choice = input("\nAccept this implementation? (y/n/e for edit): ").lower().strip()
-
-        if choice in ['y', 'yes']:
-            return suggested_impl
-        elif choice in ['n', 'no']:
-            return prompt_user_for_implementation(func)
-        elif choice in ['e', 'edit']:
-            print("\nEdit the implementation (end with an empty line):")
-            print("Current implementation:")
-            for i, line in enumerate(suggested_impl.split('\n'), 1):
-                print(f"{i:2}: {line}")
-            print("\nEnter your modified version:")
-
-            lines = []
-            while True:
-                try:
-                    line = input()
-                    if line.strip() == "" and lines:
-                        break
-                    lines.append(line)
-                except (EOFError, KeyboardInterrupt):
-                    break
-
-            if lines:
-                return "\n".join(lines)
-        else:
-            print("Please enter 'y' (yes), 'n' (no), or 'e' (edit)")
 
 
 def generate_implementation_for_function(
-    func: Callable[..., Any], call_context: dict | None = None
+    func: Callable[..., Any], call_context: dict | None = None  # noqa: ARG001
 ) -> str:
     """
     Generate a new implementation for a function that raised NotImplementedError.
 
-    Uses LLM to generate a suggested implementation, then allows user to accept or edit it.
+    Prompts user to choose between AI generation or manual implementation.
+    If AI is chosen, uses the UI comparison tool for accept/reject.
 
     Args:
         func: The function that needs an implementation
@@ -155,13 +116,45 @@ def generate_implementation_for_function(
     Returns:
         String containing the new Python code for the function
     """
-    try:
-        # Get LLM suggestion
-        suggested_impl = asyncio.run(get_llm_implementation_suggestion(func))
-
-        # Let user accept or edit the suggestion
-        return prompt_user_for_acceptance_or_edit(suggested_impl, func)
-    except Exception as e:
-        print(f"Error generating LLM suggestion: {e}")
-        # Fallback to original user prompt method
-        return prompt_user_for_implementation(func)
+    func_name = func.__name__
+    sig = inspect.signature(func)
+    
+    print(f"\nFunction '{func_name}' needs an implementation.")
+    print(f"Signature: {func_name}{sig}")
+    
+    if func.__doc__:
+        print(f"Docstring: {func.__doc__}")
+    
+    # Ask user if they want AI generation or manual implementation
+    while True:
+        choice = input("\nGenerate implementation with AI? (y/n): ").lower().strip()
+        
+        if choice in ['y', 'yes']:
+            # AI generation path
+            try:
+                suggested_impl = asyncio.run(get_llm_implementation_suggestion(func))
+                
+                # Use UI comparison tool for accept/reject
+                if show_implementation_comparison_and_confirm(func, suggested_impl):
+                    return suggested_impl
+                else:
+                    # User declined AI implementation, give them option to write manually or decline entirely
+                    while True:
+                        choice = input("\nWrite implementation manually instead? (y/n): ").lower().strip()
+                        if choice in ['y', 'yes']:
+                            return prompt_user_for_implementation(func)
+                        elif choice in ['n', 'no']:
+                            raise UserDeclinedImplementation("User declined to provide implementation")
+                        else:
+                            print("Please enter 'y' (yes) or 'n' (no)")
+                    
+            except Exception as e:
+                print(f"Error generating AI suggestion: {e}")
+                print("Falling back to manual implementation.")
+                return prompt_user_for_implementation(func)
+                
+        elif choice in ['n', 'no']:
+            # Manual implementation path
+            return prompt_user_for_implementation(func)
+        else:
+            print("Please enter 'y' (yes) or 'n' (no)")
