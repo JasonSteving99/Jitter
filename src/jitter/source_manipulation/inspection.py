@@ -1,7 +1,134 @@
 import functools
 import inspect
+import ast
+import importlib
+import sys
 from pathlib import Path
-from typing import NamedTuple
+from typing import NamedTuple, get_origin, get_args, Any, Union
+
+
+class CustomTypeInfo(NamedTuple):
+    """Information about a custom type found in function arguments."""
+    
+    name: str
+    filename: str | None     # Filename if available
+    source_code: str | None  # Source code if available
+    start_line: int | None   # Start line if available
+    end_line: int | None     # End line if available
+
+
+class ArgumentInfo(NamedTuple):
+    """Information about a function argument."""
+    
+    name: str
+    type_annotation: str | None  # Raw annotation as string
+    custom_types: list[CustomTypeInfo]  # Extracted custom types
+
+
+def _is_builtin_type(type_obj) -> bool:
+    """Check if a type is a built-in or primitive type."""
+    if type_obj is None:
+        return True
+    
+    # Handle actual type objects
+    builtin_types = (int, float, str, bool, bytes, list, dict, tuple, set, frozenset, type(None))
+    
+    # Check if it's a built-in type
+    if type_obj in builtin_types:
+        return True
+        
+    # Check if it's defined in builtins
+    if hasattr(type_obj, '__module__') and type_obj.__module__ == 'builtins':
+        return True
+    
+    # Check if it's from typing module (Union, Optional, etc.)
+    if hasattr(type_obj, '__module__') and type_obj.__module__ == 'typing':
+        return True
+        
+    return False
+
+
+def _extract_custom_types_from_annotation(annotation) -> list[CustomTypeInfo]:
+    """Extract custom type information from a type annotation."""
+    custom_types = []
+    
+    if annotation is None:
+        return custom_types
+    
+    # Handle Union types and other generic types
+    origin = get_origin(annotation)
+    if origin is not None:
+        # For Union, Optional, List[CustomType], etc. - check the args
+        args = get_args(annotation)
+        for arg in args:
+            custom_types.extend(_extract_custom_types_from_annotation(arg))
+        return custom_types
+    
+    # Skip built-in types
+    if _is_builtin_type(annotation):
+        return custom_types
+    
+    # This should be a custom type
+    type_name = getattr(annotation, '__name__', str(annotation))
+    
+    # Try to get source information
+    try:
+        filename = inspect.getfile(annotation)
+        source_lines, start_line = inspect.getsourcelines(annotation)
+        source_code = ''.join(source_lines)
+        end_line = start_line + len(source_lines) - 1
+        
+        custom_types.append(CustomTypeInfo(
+            name=type_name,
+            filename=filename,
+            source_code=source_code,
+            start_line=start_line,
+            end_line=end_line
+        ))
+    except (TypeError, OSError):
+        # Can't get source (built-in, dynamically created, etc.)
+        custom_types.append(CustomTypeInfo(
+            name=type_name,
+            filename=None,
+            source_code=None,
+            start_line=None,
+            end_line=None
+        ))
+    
+    return custom_types
+
+
+def _extract_function_arguments(func) -> list[ArgumentInfo]:
+    """Extract argument information from a function."""
+    arguments = []
+    
+    try:
+        signature = inspect.signature(func)
+        
+        for param_name, param in signature.parameters.items():
+            # Skip *args and **kwargs style parameters for now
+            if param.kind in (param.VAR_POSITIONAL, param.VAR_KEYWORD):
+                continue
+                
+            annotation = param.annotation
+            annotation_str = None
+            custom_types = []
+            
+            if annotation != param.empty:
+                annotation_str = str(annotation)
+                custom_types = _extract_custom_types_from_annotation(annotation)
+            
+            arguments.append(ArgumentInfo(
+                name=param_name,
+                type_annotation=annotation_str,
+                custom_types=custom_types
+            ))
+    
+    except (ValueError, TypeError):
+        # Can't get signature information
+        pass
+    
+    return arguments
 
 
 class FunctionLocation(NamedTuple):
@@ -11,6 +138,7 @@ class FunctionLocation(NamedTuple):
     start_line: int
     end_line: int
     source_lines: list[str]
+    arguments: list[ArgumentInfo]
 
     def source_code(self) -> str:
         """Get the complete source code as a single string."""
@@ -68,11 +196,15 @@ def get_function_lines(func) -> FunctionLocation:
     # Calculate end line
     end_line = start_line + len(source_lines) - 1
 
+    # Extract argument information
+    arguments = _extract_function_arguments(func)
+
     return FunctionLocation(
         filename=filename,
         start_line=start_line,
         end_line=end_line,
         source_lines=source_lines,
+        arguments=arguments,
     )
 
 

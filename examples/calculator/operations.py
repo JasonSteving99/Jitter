@@ -5,17 +5,21 @@ A simple calculator that provides basic arithmetic operations.
 All functions currently raise NotImplementedError and need implementation.
 """
 
+from dataclasses import dataclass
 
-def add(a, b):
+@dataclass(frozen=True)
+class IntArg:
+    val: int
+
+def add(args: list[IntArg]):
     """
-    Add two numbers together.
+    Add numbers together.
 
     Args:
-        a (float): The first number
-        b (float): The second number
+        args (list[IntArg]): A list of IntArg objects
 
     Returns:
-        float: The sum of a and b
+        float: The sum of all the arguments
     """
     raise NotImplementedError("Addition operation not yet implemented")
 

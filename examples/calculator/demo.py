@@ -5,7 +5,7 @@ from jitter.core.handler import not_implemented_handler
 
 def main():
     # Basic arithmetic formula: (5 + 3) * 2 - 4 / 2 = 14
-    result1 = operations.add(5, 3)
+    result1 = operations.add([operations.IntArg(val=5), operations.IntArg(val=3)])
     result2 = operations.multiply(result1, 2)
     result3 = operations.divide(4, 2)
     final_result = operations.subtract(result2, result3)

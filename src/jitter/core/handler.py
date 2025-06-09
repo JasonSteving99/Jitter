@@ -4,7 +4,6 @@ from collections.abc import Generator
 from contextlib import contextmanager
 
 from jitter.generation.generator import generate_implementation_for_function, UserDeclinedImplementation
-from jitter.generation.ui import show_implementation_comparison_and_confirm
 from jitter.source_manipulation.hot_reload import hot_reload
 from jitter.source_manipulation.inspection import get_function_lines
 from jitter.source_manipulation.replacement import replace_function_implementation
@@ -14,8 +13,11 @@ def extract_call_chain_from_traceback():
     """
     Extract the complete call chain from the current NotImplementedError traceback.
 
+    CRUCIAL! IGNORE THE CALLS IN THE CHAIN THAT ORIGINATE WITHIN THIS JITTER MODULE.
+    WE'RE ONLY CONCERNED WITH THE FUNCTIONS IN THE UNDERLYING USER PROGRAM.
+
     Returns:
-        List of (function, args, kwargs) tuples representing the call chain
+        List of (function, args, kwargs, filename, lineno) tuples representing the call chain
         from the context manager down to where NotImplementedError was raised.
     """
     exc_type, exc_value, exc_traceback = sys.exc_info()
@@ -56,10 +58,20 @@ def extract_call_chain_from_traceback():
             if func is None:
                 continue
 
+            # Skip calls originating from the jitter module itself
+            func_module = inspect.getmodule(func)
+            current_module = sys.modules[__name__]
+            if func_module is current_module:
+                continue
+
             # Extract arguments from the frame
             args, kwargs = _extract_arguments_from_frame(frame, func)
 
-            call_chain.append((func, args, kwargs))
+            # Extract file and line number
+            filename = code.co_filename
+            lineno = frame.f_lineno
+
+            call_chain.append((func, args, kwargs, filename, lineno))
 
         except Exception as e:
             print(f"[Jitter] Warning: Could not extract call info for {func_name}: {e}")
@@ -163,7 +175,7 @@ def _rerun_from_unimplemented(call_chain):
 
     # Only call the first (top) function - the deterministic nature of programs
     # will ensure the rest of the call stack is automatically called
-    top_func, top_args, top_kwargs = call_chain[0]
+    top_func, top_args, top_kwargs, _, _ = call_chain[0]
 
     # Get fresh function reference after potential hot reload
     func_module = inspect.getmodule(top_func)
@@ -207,9 +219,9 @@ def not_implemented_handler(enable_replay: bool = True) -> Generator[None, None,
         ):  # Keep looping until we implement and run every unimplemented function.
             if not enable_replay:
                 print("\n═══ [Jitter] NotImplementedError in call chain ═══")
-                for i, (func, args, kwargs) in enumerate(call_chain):
+                for i, (func, args, kwargs, filename, lineno) in enumerate(call_chain):
                     print(
-                        f"  {i + 1}. {func.__name__} at {func.__code__.co_filename}:{func.__code__.co_firstlineno}"
+                        f"  {i + 1}. {func.__name__} at {filename}:{lineno}"
                     )
                 print("═" * 50)
                 raise e
@@ -224,21 +236,24 @@ def not_implemented_handler(enable_replay: bool = True) -> Generator[None, None,
                 raise e
 
             print(f"\n┌─ [Jitter] Extracted call chain with {len(call_chain)} calls ─┐")
-            for i, (func, args, kwargs) in enumerate(call_chain):
+            for i, (func, args, kwargs, filename, lineno) in enumerate(call_chain):
                 print(
-                    f"│  {i + 1}. {func.__name__}({len(args)} args, {len(kwargs)} kwargs)"
+                    f"│  {i + 1}. {func.__name__}({len(args)} args, {len(kwargs)} kwargs) at {filename}:{lineno}"
                 )
             print("└" + "─" * (len(f"Extracted call chain with {len(call_chain)} calls") + 20) + "┘")
 
             # Generate implementation for the failing function (last in call chain)
             if call_chain:
-                failing_func, _, _ = call_chain[
+                failing_func, _, _, _, _ = call_chain[
                     -1
                 ]  # Last function in chain raised NotImplementedError
                 print(f"\n>>> Generating implementation for {failing_func.__name__}...")
                 try:
+                    # Get the call stack of function locations for code generation. Everything but
+                    # the last in the call chain since that's the failing func we're gonna rewrite.
+                    call_stack = [get_function_lines(func) for func, _, _, _, _ in call_chain[:-1]]
                     # Generate new implementation (user confirmation handled inside)
-                    new_code = generate_implementation_for_function(failing_func)
+                    new_code = generate_implementation_for_function(failing_func, call_stack)
 
                     # Get function location info
                     location = get_function_lines(failing_func)
