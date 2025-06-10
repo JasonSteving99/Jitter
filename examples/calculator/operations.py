@@ -5,19 +5,13 @@ A simple calculator that provides basic arithmetic operations.
 All functions currently raise NotImplementedError and need implementation.
 """
 
-from dataclasses import dataclass
-
-@dataclass(frozen=True)
-class IntArg:
-    val: int
-
-def add(a: IntArg, b: IntArg):
+def add(a, b):
     """
     Add numbers together.
 
     Args:
-        a (IntArg): The first number
-        b (IntArg): The second number
+        a (float): The first number
+        b (float): The second number
 
     Returns:
         float: The sum of a and b

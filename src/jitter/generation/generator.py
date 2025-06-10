@@ -178,7 +178,7 @@ Use this context to understand the function's purpose and generate an appropriat
 Return only valid Python code that implements the function based on its signature, docstring, and calling context.
 The implementation should be practical and follow Python best practices.{call_stack_context}"""
 
-    english_description = f"Generate an implementation for this Python function:\n\n{func_source}"
+    english_description = f"Generate an implementation for this Python function located at {func_location.filename}:{func_location.start_line}-{func_location.end_line}:\n\n{func_source}"
 
     print("\033[93mTESTING! LLM SYSTEM PROMPT:\n\n" + system_prompt + "\n\n\033[0m")
 
