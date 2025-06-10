@@ -39,6 +39,13 @@ class ArgumentInfo(NamedTuple):
     custom_types: list[CustomTypeInfo]  # Extracted custom types
 
 
+class ReturnTypeInfo(NamedTuple):
+    """Information about a function's return type."""
+
+    type_annotation: str | None  # Raw annotation as string
+    custom_types: list[CustomTypeInfo]  # Extracted custom types
+
+
 def _extract_references_from_source(source_code: str) -> list[str]:
     """Extract @path.to.foo and @path.to::foo style references from source code."""
     # Match @module.path, optionally followed by ::member (which we ignore)
@@ -268,6 +275,31 @@ def _extract_function_arguments(func) -> list[ArgumentInfo]:
     return arguments
 
 
+def _extract_function_return_type(func) -> ReturnTypeInfo:
+    """Extract return type information from a function."""
+    try:
+        signature = inspect.signature(func)
+        return_annotation = signature.return_annotation
+        
+        annotation_str = None
+        custom_types = []
+        
+        if return_annotation != signature.empty:
+            annotation_str = str(return_annotation)
+            custom_types = _extract_custom_types_from_annotation(return_annotation)
+        
+        return ReturnTypeInfo(
+            type_annotation=annotation_str,
+            custom_types=custom_types
+        )
+    except (ValueError, TypeError):
+        # Can't get signature information
+        return ReturnTypeInfo(
+            type_annotation=None,
+            custom_types=[]
+        )
+
+
 class FunctionLocation(NamedTuple):
     """Container for function location information."""
 
@@ -276,6 +308,7 @@ class FunctionLocation(NamedTuple):
     end_line: int
     source_lines: list[str]
     arguments: list[ArgumentInfo]
+    return_type: ReturnTypeInfo
     references: list[ReferenceInfo]
 
     def source_code(self) -> str:
@@ -466,6 +499,9 @@ def get_function_lines(func) -> FunctionLocation:
     # Extract argument information
     arguments = _extract_function_arguments(func)
     
+    # Extract return type information
+    return_type = _extract_function_return_type(func)
+    
     # Extract references from source code
     source_code = ''.join(source_lines)
     raw_references = _extract_references_from_source(source_code)
@@ -477,6 +513,7 @@ def get_function_lines(func) -> FunctionLocation:
         end_line=end_line,
         source_lines=source_lines,
         arguments=arguments,
+        return_type=return_type,
         references=references,
     )
 
