@@ -1,11 +1,12 @@
 from calculator import operations
+from calculator import test
 
 from jitter.core.handler import not_implemented_handler
 
 
 def main():
     # Basic arithmetic formula: (5 + 3) * 2 - 4 / 2 = 14
-    result1 = operations.add([operations.IntArg(val=5), operations.IntArg(val=3)])
+    result1 = operations.add(operations.IntArg(val=5), operations.IntArg(val=3))
     result2 = operations.multiply(result1, 2)
     result3 = operations.divide(4, 2)
     final_result = operations.subtract(result2, result3)
@@ -17,6 +18,8 @@ def main():
     # final_result2 = add(sqrt_result, power_result)
     # print(f"Second formula result: {final_result2}")
 
+
 if __name__ == "__main__":
     with not_implemented_handler():
-        main()
+        # main()
+        test.test()

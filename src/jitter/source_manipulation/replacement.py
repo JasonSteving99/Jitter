@@ -1,18 +1,26 @@
 import re
 from pathlib import Path
 
-from jitter.source_manipulation.inspection import FunctionLocation, get_function_lines
+from jitter.source_manipulation.inspection import (
+    FunctionLocation, 
+    get_function_lines,
+    generate_import_statements_from_references,
+    add_imports_to_file
+)
+from jitter.generation.types import GeneratedImplementation
 
 
 def replace_function_implementation(
-    location: FunctionLocation, new_implementation: str
+    location: FunctionLocation, generated: GeneratedImplementation
 ) -> None:
     """
     Replace a function's entire implementation in its source file.
+    Automatically adds necessary imports based on references found in the original function
+    and any additional imports specified in the generated implementation.
 
     Args:
         location: FunctionLocation containing the function's file and line info
-        new_implementation: Complete new function definition as a string
+        generated: GeneratedImplementation containing the new function code and imports
 
     Raises:
         FileNotFoundError: If the source file doesn't exist
@@ -25,7 +33,7 @@ def replace_function_implementation(
         raise FileNotFoundError(f"Source file not found: {location.filename}")
 
     # Validate that new implementation is a complete function definition
-    if not new_implementation.strip().startswith("def "):
+    if not generated.implementation.strip().startswith("def "):
         raise ValueError(
             "New implementation must be a complete function definition starting with 'def'"
         )
@@ -49,7 +57,7 @@ def replace_function_implementation(
     base_indentation = _get_indentation(original_first_line)
 
     # Process the new implementation with proper indentation
-    processed_lines = _process_new_implementation(new_implementation, base_indentation)
+    processed_lines = _process_new_implementation(generated.implementation, base_indentation)
 
     # Replace the function lines (convert to 0-based indexing)
     start_idx = location.start_line - 1
@@ -64,6 +72,24 @@ def replace_function_implementation(
             f.writelines(new_lines)
     except OSError as e:
         raise OSError(f"Cannot write to file {location.filename}: {e}")
+    
+    # Add necessary imports based on the original function's references and generated imports
+    # This is done AFTER the function replacement to avoid invalidating the FunctionLocation
+    all_imports = []
+    
+    # Add imports from original function references
+    if location.references:
+        import_statements = generate_import_statements_from_references(location.references)
+        if import_statements:
+            all_imports.extend(import_statements)
+    
+    # Add imports from generated implementation
+    if generated.necessary_imports:
+        all_imports.extend(generated.necessary_imports)
+    
+    # Add all imports to file
+    if all_imports:
+        add_imports_to_file(str(file_path), all_imports)
 
 
 def _get_indentation(line: str) -> str:
@@ -129,4 +155,5 @@ if __name__ == "__main__":
 
     # Usage example:
     location = get_function_lines(sample_function)
-    replace_function_implementation(location, new_function)
+    generated = GeneratedImplementation(implementation=new_function, necessary_imports=[])
+    replace_function_implementation(location, generated)

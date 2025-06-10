@@ -33,7 +33,7 @@ async def call_llm(
     response_schema: type[BaseModel],
     api_key: str | None = None,
     temperature: float = 0.2,
-    max_output_tokens: int = 8192,
+    max_output_tokens: int = 50_000,
 ) -> LlmResponse:
     """Call the Gemini API to generate code.
 
@@ -95,6 +95,9 @@ async def call_llm(
             raise RuntimeError("Content was filtered due to safety concerns")
 
         if not response.parsed:
+            # Print the actual response for debugging
+            actual_output = str(response)
+            print(f"\033[31mTESTING!!! Actual LLM output was: {actual_output}\033[0m")
             raise RuntimeError("LLM Response failed to parse to required schema.")
 
         # Create usage stats dictionary (estimate, as Gemini might not provide exact counts)

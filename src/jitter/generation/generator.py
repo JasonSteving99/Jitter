@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from jitter.generation.llm import call_llm
 from jitter.generation.ui import show_implementation_comparison_and_confirm
 from jitter.source_manipulation.inspection import FunctionLocation, get_function_lines
+from jitter.generation.types import GeneratedImplementation
 
 
 class UserDeclinedImplementation(Exception):
@@ -18,8 +19,9 @@ class UserDeclinedImplementation(Exception):
 class ImplementationSuggestion(BaseModel):
     """Schema for LLM-generated implementation suggestions."""
 
-    implementation: str = Field(description="Complete Python function implementation code")
     explanation: str = Field(description="Brief explanation of what the implementation does")
+    necessary_imports: list[str] = Field(description="List of module import statements that are absolutely unavoidably necessary to implement this function")
+    implementation: str = Field(description="Complete Python function definition ONLY - no import statements, just the function")
 
 
 def prompt_user_for_implementation(func: Callable[..., Any]) -> str:
@@ -66,7 +68,7 @@ def prompt_user_for_implementation(func: Callable[..., Any]) -> str:
     return "\n".join(lines)
 
 
-async def get_llm_implementation_suggestion(func: Callable[..., Any], call_stack: list[FunctionLocation]) -> str:
+async def get_llm_implementation_suggestion(func: Callable[..., Any], call_stack: list[FunctionLocation]) -> ImplementationSuggestion:
     """
     Use LLM to generate a suggested implementation for a function.
 
@@ -75,32 +77,32 @@ async def get_llm_implementation_suggestion(func: Callable[..., Any], call_stack
         call_stack: List of FunctionLocation objects representing the call stack leading to this function
 
     Returns:
-        String containing the LLM-suggested Python code for the function
+        ImplementationSuggestion containing the LLM-suggested implementation and imports
     """
     func_source = inspect.getsource(func)
 
     # Build context from call stack (limit to last 10 functions to keep context manageable)
     limited_call_stack = call_stack[-10:] if len(call_stack) > 10 else call_stack
-    
+
     func_name = func.__name__
     func_sig = inspect.signature(func)
-    
+
     # Get argument type information for the target function
     try:
         func_location = get_function_lines(func)
         argument_types_context = ""
-        
+
         # Collect all custom types from arguments
         all_custom_types = {}
         for arg in func_location.arguments:
             for custom_type in arg.custom_types:
                 if custom_type.name not in all_custom_types and custom_type.source_code:
                     all_custom_types[custom_type.name] = custom_type
-        
+
         if all_custom_types:
-            argument_types_context += f"\n\nARGUMENT TYPE DEFINITIONS:\n"
-            argument_types_context += f"The function uses these custom types in its arguments:\n\n"
-            
+            argument_types_context += "\n\nARGUMENT TYPE DEFINITIONS:\n"
+            argument_types_context += "The function uses these custom types in its arguments:\n\n"
+
             for type_name, custom_type in all_custom_types.items():
                 argument_types_context += f"--- {type_name} (from {custom_type.filename}:{custom_type.start_line}-{custom_type.end_line}) ---\n"
                 argument_types_context += custom_type.source_code
@@ -108,18 +110,61 @@ async def get_llm_implementation_suggestion(func: Callable[..., Any], call_stack
     except Exception:
         # If we can't get argument info, continue without it
         argument_types_context = ""
-    
-    call_stack_context = f"\n\nTARGET FUNCTION TO IMPLEMENT:\n"
+
+    # Get implementation references information for the target function
+    try:
+        # Extract reference context from the target function
+        references_context = ""
+        references_with_source = [ref for ref in func_location.references if ref.source_code and not ref.error_message]
+        
+        # Log skipped references
+        for ref in func_location.references:
+            if ref.error_message:
+                print(f"TESTING!!! Skipping reference {ref.raw_reference}: {ref.error_message}")
+            elif not ref.source_code:
+                print(f"TESTING!!! Skipping reference {ref.raw_reference}: no source code available")
+        
+        if references_with_source:
+            references_context += "\n\nREFERENCED DEPENDENCIES:\n"
+            references_context += "The function's implementation plan references these modules/functions that should be used in the implementation.\n"
+            references_context += "IMPORTANT: Do NOT include import statements for these modules in your implementation - the module imports will be automatically added to the file (access members via the module).\n\n"
+            
+            for ref in references_with_source:
+                if ref.target_name:
+                    # Member reference like @foo.bar::baz -> from foo import bar -> use bar.baz
+                    module_parts = ref.module_path.split('.')
+                    if len(module_parts) > 1:
+                        import_name = module_parts[-1]
+                        usage = f"{import_name}.{ref.target_name}"
+                    else:
+                        usage = f"{ref.module_path}.{ref.target_name}"
+                    references_context += f"--- {ref.raw_reference} ({ref.target_name} from {ref.filename}:{ref.start_line}-{ref.end_line}) - Use as: {usage} ---\n"
+                else:
+                    # Module-only reference like @foo.bar.baz -> from foo.bar import baz -> use baz
+                    module_parts = ref.module_path.split('.')
+                    if len(module_parts) > 1:
+                        usage = module_parts[-1]
+                    else:
+                        usage = ref.module_path
+                    references_context += f"--- {ref.raw_reference} (module from {ref.filename}) - Use as: {usage} ---\n"
+                references_context += cast(str, ref.source_code)
+                references_context += "\n"
+    except Exception:
+        # If we can't get reference info, continue without it
+        references_context = ""
+
+    call_stack_context = "\n\nTARGET FUNCTION TO IMPLEMENT:\n"
     call_stack_context += f"Function name: {func_name}\n"
     call_stack_context += f"Function signature: {func_name}{func_sig}\n"
     if func.__doc__:
         call_stack_context += f"Function docstring: {func.__doc__}\n"
-    
+
     call_stack_context += argument_types_context
-    
-    call_stack_context += f"\n\nCALL STACK CONTEXT:\n"
+    call_stack_context += references_context
+
+    call_stack_context += "\n\nCALL STACK CONTEXT:\n"
     call_stack_context += f"Here are the functions in the call stack that led to {func_name} being called (showing last {len(limited_call_stack)} of {len(call_stack)}):\n\n"
-    
+
     for i, func_location in enumerate(limited_call_stack):
         call_stack_context += f"--- Call Stack Level {i+1}: {func_location.filename}:{func_location.start_line}-{func_location.end_line} ---\n"
         call_stack_context += func_location.source_code()
@@ -145,18 +190,22 @@ The implementation should be practical and follow Python best practices.{call_st
             response_schema=ImplementationSuggestion,
         )
 
-        return cast(ImplementationSuggestion, response.parsed).implementation
+        return cast(ImplementationSuggestion, response.parsed)
     except Exception as e:
         # Fallback to user prompt if LLM fails
         print(f"LLM generation failed: {e}")
-        return prompt_user_for_implementation(func)
+        return ImplementationSuggestion(
+            explanation="Fallback implementation due to LLM failure",
+            necessary_imports=[],
+            implementation=prompt_user_for_implementation(func)
+        )
 
 
 
 
 def generate_implementation_for_function(
     func: Callable[..., Any], call_stack: list[FunctionLocation]
-) -> str:
+) -> GeneratedImplementation:
     """
     Generate a new implementation for a function that raised NotImplementedError.
 
@@ -168,47 +217,59 @@ def generate_implementation_for_function(
         call_stack: List of FunctionLocation objects representing the call stack leading to this function
 
     Returns:
-        String containing the new Python code for the function
+        GeneratedImplementation containing the new Python code and necessary imports
     """
     func_name = func.__name__
     sig = inspect.signature(func)
-    
+
     print(f"\nFunction '{func_name}' needs an implementation.")
     print(f"Signature: {func_name}{sig}")
-    
+
     if func.__doc__:
         print(f"Docstring: {func.__doc__}")
-    
+
     # Ask user if they want AI generation or manual implementation
     while True:
         choice = input("\nGenerate implementation with AI? (y/n): ").lower().strip()
-        
+
         if choice in ['y', 'yes']:
             # AI generation path
             try:
                 suggested_impl = asyncio.run(get_llm_implementation_suggestion(func, call_stack))
-                
+
                 # Use UI comparison tool for accept/reject
-                if show_implementation_comparison_and_confirm(func, suggested_impl):
-                    return suggested_impl
+                if show_implementation_comparison_and_confirm(func, suggested_impl.implementation):
+                    return GeneratedImplementation(
+                        implementation=suggested_impl.implementation,
+                        necessary_imports=suggested_impl.necessary_imports
+                    )
                 else:
                     # User declined AI implementation, give them option to write manually or decline entirely
                     while True:
                         choice = input("\nWrite implementation manually instead? (y/n): ").lower().strip()
                         if choice in ['y', 'yes']:
-                            return prompt_user_for_implementation(func)
+                            return GeneratedImplementation(
+                                implementation=prompt_user_for_implementation(func),
+                                necessary_imports=[]
+                            )
                         elif choice in ['n', 'no']:
                             raise UserDeclinedImplementation("User declined to provide implementation")
                         else:
                             print("Please enter 'y' (yes) or 'n' (no)")
-                    
+
             except Exception as e:
                 print(f"Error generating AI suggestion: {e}")
                 print("Falling back to manual implementation.")
-                return prompt_user_for_implementation(func)
-                
+                return GeneratedImplementation(
+                    implementation=prompt_user_for_implementation(func),
+                    necessary_imports=[]
+                )
+
         elif choice in ['n', 'no']:
             # Manual implementation path
-            return prompt_user_for_implementation(func)
+            return GeneratedImplementation(
+                implementation=prompt_user_for_implementation(func),
+                necessary_imports=[]
+            )
         else:
             print("Please enter 'y' (yes) or 'n' (no)")

@@ -253,12 +253,12 @@ def not_implemented_handler(enable_replay: bool = True) -> Generator[None, None,
                     # the last in the call chain since that's the failing func we're gonna rewrite.
                     call_stack = [get_function_lines(func) for func, _, _, _, _ in call_chain[:-1]]
                     # Generate new implementation (user confirmation handled inside)
-                    new_code = generate_implementation_for_function(failing_func, call_stack)
+                    generated = generate_implementation_for_function(failing_func, call_stack)
 
                     # Get function location info
                     location = get_function_lines(failing_func)
                     # Replace the function's implementation in source file
-                    replace_function_implementation(location, new_code)
+                    replace_function_implementation(location, generated)
 
                     # Hot reload the module to get the updated function
                     func_module = inspect.getmodule(failing_func)

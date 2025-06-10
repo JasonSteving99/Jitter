@@ -11,15 +11,16 @@ from dataclasses import dataclass
 class IntArg:
     val: int
 
-def add(args: list[IntArg]):
+def add(a: IntArg, b: IntArg):
     """
     Add numbers together.
 
     Args:
-        args (list[IntArg]): A list of IntArg objects
+        a (IntArg): The first number
+        b (IntArg): The second number
 
     Returns:
-        float: The sum of all the arguments
+        float: The sum of a and b
     """
     raise NotImplementedError("Addition operation not yet implemented")
 
