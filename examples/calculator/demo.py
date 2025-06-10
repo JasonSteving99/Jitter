@@ -22,4 +22,4 @@ def main():
 if __name__ == "__main__":
     with not_implemented_handler():
         # main()
-        print(test.test())
+        test.test()
