@@ -6,7 +6,7 @@ from typing import Any, cast
 from pydantic import BaseModel, Field
 
 from jitter.generation.llm import call_llm
-from jitter.generation.ui import show_implementation_comparison_and_confirm
+from jitter.generation.vscode_function_diff import show_vscode_function_diff_and_get_changes
 from jitter.source_manipulation.inspection import FunctionLocation, get_function_lines
 from jitter.generation.types import GeneratedImplementation
 
@@ -237,12 +237,21 @@ def generate_implementation_for_function(
             try:
                 suggested_impl = asyncio.run(get_llm_implementation_suggestion(func, call_stack))
 
-                # Use UI comparison tool for accept/reject
-                if show_implementation_comparison_and_confirm(func, suggested_impl.implementation):
-                    return GeneratedImplementation(
+                # Use VS Code diff for review
+                try:
+                    location = get_function_lines(func)
+                    generated_impl = GeneratedImplementation(
                         implementation=suggested_impl.implementation,
                         necessary_imports=suggested_impl.necessary_imports
                     )
+                    
+                    if show_vscode_function_diff_and_get_changes(location, generated_impl):
+                        # Changes were applied successfully
+                        return generated_impl
+                    # If VS Code diff returns False, fall through to manual option
+                except Exception as e:
+                    print(f"VS Code diff failed: {e}")
+                    print("Falling back to manual implementation...")
                 else:
                     # User declined AI implementation, give them option to write manually or decline entirely
                     while True:
