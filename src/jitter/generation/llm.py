@@ -25,7 +25,7 @@ class LlmResponse:
     finish_reason: str | None
 
 
-async def call_llm(
+def call_llm(
     *,
     system_prompt: str,
     english_description: str,
@@ -68,7 +68,7 @@ async def call_llm(
         client = genai.Client(api_key=api_key)
 
         # Generate the content
-        response = await client.aio.models.generate_content(
+        response = client.models.generate_content(
             model=model_name,
             contents=english_description,
             config=GenerateContentConfig(

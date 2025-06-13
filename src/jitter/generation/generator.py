@@ -68,7 +68,7 @@ def prompt_user_for_implementation(func: Callable[..., Any]) -> str:
     return "\n".join(lines)
 
 
-async def get_llm_implementation_suggestion(func: Callable[..., Any], call_stack: list[FunctionLocation]) -> ImplementationSuggestion:
+def get_llm_implementation_suggestion(func: Callable[..., Any], call_stack: list[FunctionLocation]) -> ImplementationSuggestion:
     """
     Use LLM to generate a suggested implementation for a function.
 
@@ -183,7 +183,7 @@ The implementation should be practical and follow Python best practices.{call_st
     print("\033[93mTESTING! LLM SYSTEM PROMPT:\n\n" + system_prompt + "\n\n\033[0m")
 
     try:
-        response = await call_llm(
+        response = call_llm(
             system_prompt=system_prompt,
             english_description=english_description,
             model_name="models/gemini-2.5-flash-preview-05-20",
@@ -235,7 +235,7 @@ def generate_implementation_for_function(
         if choice in ['y', 'yes']:
             # AI generation path
             try:
-                suggested_impl = asyncio.run(get_llm_implementation_suggestion(func, call_stack))
+                suggested_impl = get_llm_implementation_suggestion(func, call_stack)
 
                 # Use VS Code diff for review
                 try:

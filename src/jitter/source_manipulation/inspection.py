@@ -4,7 +4,7 @@ import importlib
 import inspect
 import re
 from pathlib import Path
-from typing import NamedTuple, get_args, get_origin
+from typing import NamedTuple, get_args, get_origin, get_type_hints
 
 
 class CustomTypeInfo(NamedTuple):
@@ -192,8 +192,48 @@ def _is_builtin_type(type_obj) -> bool:
     return False
 
 
-def _extract_custom_types_from_annotation(annotation) -> list[CustomTypeInfo]:
+def _extract_nested_types_from_custom_type(custom_type, visited: set = None) -> list[CustomTypeInfo]:
+    """
+    Recursively extract all nested custom types from a custom type's field annotations.
+    
+    Args:
+        custom_type: The custom type (class) to inspect
+        visited: Set of already-visited types to prevent infinite recursion
+        
+    Returns:
+        List of CustomTypeInfo objects for all nested custom types found
+    """
+    if visited is None:
+        visited = set()
+    
+    # Prevent infinite recursion
+    if custom_type in visited:
+        return []
+    
+    visited.add(custom_type)
+    nested_types = []
+    
+    try:
+        # Get type hints for the class
+        type_hints = get_type_hints(custom_type)
+        
+        # Extract custom types from each field annotation
+        for field_name, field_type in type_hints.items():
+            field_custom_types = _extract_custom_types_from_annotation(field_type, visited)
+            nested_types.extend(field_custom_types)
+                    
+    except (TypeError, AttributeError, NameError):
+        # If get_type_hints fails, return empty list
+        pass
+    
+    return nested_types
+
+
+def _extract_custom_types_from_annotation(annotation, visited: set = None) -> list[CustomTypeInfo]:
     """Extract custom type information from a type annotation."""
+    if visited is None:
+        visited = set()
+    
     custom_types = []
 
     if annotation is None:
@@ -205,7 +245,7 @@ def _extract_custom_types_from_annotation(annotation) -> list[CustomTypeInfo]:
         # For Union, Optional, List[CustomType], etc. - check the args
         args = get_args(annotation)
         for arg in args:
-            custom_types.extend(_extract_custom_types_from_annotation(arg))
+            custom_types.extend(_extract_custom_types_from_annotation(arg, visited))
         return custom_types
 
     # Skip built-in types
@@ -239,7 +279,19 @@ def _extract_custom_types_from_annotation(annotation) -> list[CustomTypeInfo]:
             end_line=None
         ))
 
-    return custom_types
+    # Recursively extract nested types from this custom type
+    nested_types = _extract_nested_types_from_custom_type(annotation, visited)
+    custom_types.extend(nested_types)
+
+    # Remove duplicates while preserving order
+    seen_names = set()
+    unique_types = []
+    for custom_type in custom_types:
+        if custom_type.name not in seen_names:
+            seen_names.add(custom_type.name)
+            unique_types.append(custom_type)
+
+    return unique_types
 
 
 def _extract_function_arguments(func) -> list[ArgumentInfo]:
