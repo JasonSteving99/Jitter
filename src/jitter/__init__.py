@@ -6,7 +6,7 @@ with `NotImplementedError` placeholders and implement functions on-the-fly at ru
 using LLM assistance.
 """
 
-from jitter.core.handler import not_implemented_handler
+from jitter.core.handler import Jitter
 
 __version__ = "0.1.0"
-__all__ = ["not_implemented_handler"]
+__all__ = ["Jitter"]

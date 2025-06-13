@@ -43,7 +43,7 @@ def extract_call_chain_from_traceback():
 
         # Skip frames until we find the context manager
         if not context_manager_found:
-            if func_name == "not_implemented_handler":
+            if func_name == "Jitter":
                 context_manager_found = True
                 continue
             else:
@@ -197,7 +197,7 @@ def _rerun_from_unimplemented(call_chain):
 
 
 @contextmanager
-def not_implemented_handler(enable_replay: bool = True) -> Generator[None, None, None]:
+def Jitter(enable_replay: bool = True) -> Generator[None, None, None]:
     """
     Context manager that handles NotImplementedError with full call chain replay.
 
@@ -205,7 +205,7 @@ def not_implemented_handler(enable_replay: bool = True) -> Generator[None, None,
         enable_replay: Whether to enable automatic retry by replaying the call chain
 
     Usage:
-        with not_implemented_handler():
+        with Jitter():
             result = some_function_that_might_raise_not_implemented()
     """
     try:
@@ -316,7 +316,7 @@ if __name__ == "__main__":
     print("    Testing Call Chain Replay")
     print("=" * 50)
     try:
-        with not_implemented_handler():
+        with Jitter():
             result = level_1_function("test", "extra_arg", y=30, extra_arg_debug=True)
             print(f"\nFinal Result: {result}")
     except NotImplementedError:
