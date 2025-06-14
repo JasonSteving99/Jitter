@@ -32,7 +32,8 @@ async def main(output_dir: Path, desc: str):
     JITTER_DESIGN_FILE = "JITTER_DESIGN_AND_USAGE.md"
 
     try:
-        with open(JITTER_DESIGN_FILE, encoding='utf-8') as f:
+        # The design file is expected to be directly next to this file.
+        with open(Path(__file__).parent / JITTER_DESIGN_FILE, encoding='utf-8') as f:
             jitter_design_content = f.read()
     except FileNotFoundError:
         print(f"Error: {JITTER_DESIGN_FILE} not found. Please ensure it's in the current directory.")
