@@ -1,6 +1,6 @@
-import tempfile
 import subprocess
-import os
+import tempfile
+
 
 def show_vscode_diff_and_get_changes(original_content, proposed_modified_content, original_title="Original", modified_title="Proposed Changes"):
     """

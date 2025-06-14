@@ -1,4 +1,3 @@
-import asyncio
 import inspect
 from collections.abc import Callable
 from typing import Any, cast
@@ -6,9 +5,9 @@ from typing import Any, cast
 from pydantic import BaseModel, Field
 
 from jitter.generation.llm import call_llm
+from jitter.generation.types import GeneratedImplementation
 from jitter.generation.vscode_function_diff import show_vscode_function_diff_and_get_changes
 from jitter.source_manipulation.inspection import FunctionLocation, get_function_lines
-from jitter.generation.types import GeneratedImplementation
 
 
 class UserDeclinedImplementation(Exception):
@@ -116,19 +115,19 @@ def get_llm_implementation_suggestion(func: Callable[..., Any], call_stack: list
         # Extract reference context from the target function
         references_context = ""
         references_with_source = [ref for ref in func_location.references if ref.source_code and not ref.error_message]
-        
+
         # Log skipped references
         for ref in func_location.references:
             if ref.error_message:
                 print(f"TESTING!!! Skipping reference {ref.raw_reference}: {ref.error_message}")
             elif not ref.source_code:
                 print(f"TESTING!!! Skipping reference {ref.raw_reference}: no source code available")
-        
+
         if references_with_source:
             references_context += "\n\nREFERENCED DEPENDENCIES:\n"
             references_context += "The function's implementation plan references these modules/functions that should be used in the implementation.\n"
             references_context += "IMPORTANT: Do NOT include import statements for these modules in your implementation - the module imports will be automatically added to the file (access members via the module).\n\n"
-            
+
             for ref in references_with_source:
                 if ref.target_name:
                     # Member reference like @foo.bar::baz -> from foo import bar -> use bar.baz
@@ -244,7 +243,7 @@ def generate_implementation_for_function(
                         implementation=suggested_impl.implementation,
                         necessary_imports=suggested_impl.necessary_imports
                     )
-                    
+
                     if show_vscode_function_diff_and_get_changes(location, generated_impl):
                         # Changes were applied successfully
                         return generated_impl

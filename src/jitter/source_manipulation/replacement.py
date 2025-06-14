@@ -1,13 +1,13 @@
 import re
 from pathlib import Path
 
-from jitter.source_manipulation.inspection import (
-    FunctionLocation, 
-    get_function_lines,
-    generate_import_statements_from_references,
-    add_imports_to_file
-)
 from jitter.generation.types import GeneratedImplementation
+from jitter.source_manipulation.inspection import (
+    FunctionLocation,
+    add_imports_to_file,
+    generate_import_statements_from_references,
+    get_function_lines,
+)
 
 
 def replace_function_implementation(
@@ -31,12 +31,6 @@ def replace_function_implementation(
 
     if not file_path.exists():
         raise FileNotFoundError(f"Source file not found: {location.filename}")
-
-    # Validate that new implementation is a complete function definition
-    if not generated.implementation.strip().startswith("def "):
-        raise ValueError(
-            "New implementation must be a complete function definition starting with 'def'"
-        )
 
     # Read the entire file
     try:
@@ -72,21 +66,21 @@ def replace_function_implementation(
             f.writelines(new_lines)
     except OSError as e:
         raise OSError(f"Cannot write to file {location.filename}: {e}")
-    
+
     # Add necessary imports based on the original function's references and generated imports
     # This is done AFTER the function replacement to avoid invalidating the FunctionLocation
     all_imports = []
-    
+
     # Add imports from original function references
     if location.references:
         import_statements = generate_import_statements_from_references(location.references)
         if import_statements:
             all_imports.extend(import_statements)
-    
+
     # Add imports from generated implementation
     if generated.necessary_imports:
         all_imports.extend(generated.necessary_imports)
-    
+
     # Add all imports to file
     if all_imports:
         add_imports_to_file(str(file_path), all_imports)

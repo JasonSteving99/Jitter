@@ -3,11 +3,10 @@ import sys
 from collections.abc import Generator
 from contextlib import contextmanager
 
-from jitter.generation.generator import generate_implementation_for_function, UserDeclinedImplementation
+from jitter.generation.generator import UserDeclinedImplementation, generate_implementation_for_function
+from jitter.generation.vscode_function_diff import open_function_in_vscode
 from jitter.source_manipulation.hot_reload import hot_reload
 from jitter.source_manipulation.inspection import get_function_lines
-from jitter.source_manipulation.replacement import replace_function_implementation
-from jitter.generation.vscode_function_diff import open_function_in_vscode
 
 
 def extract_call_chain_from_traceback():
@@ -249,11 +248,11 @@ def Jitter(enable_replay: bool = True) -> Generator[None, None, None]:
                     -1
                 ]  # Last function in chain raised NotImplementedError
                 print(f"\n>>> Generating implementation for {failing_func.__name__}...")
-                
+
                 # Open the function in VS Code so user can see context while waiting for LLM
                 failing_func_location = get_function_lines(failing_func)
                 open_function_in_vscode(failing_func_location)
-                
+
                 try:
                     # Get the call stack of function locations for code generation. Everything but
                     # the last in the call chain since that's the failing func we're gonna rewrite.

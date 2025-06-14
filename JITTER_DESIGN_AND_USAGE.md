@@ -682,8 +682,7 @@ from order import *
 Start with high-level orchestration:
 
 ```python
-from jitter.core import handler
-
+# foo.py
 def main():
     """Main application entry point."""
     user_input = get_user_input()
@@ -707,8 +706,15 @@ def display_results(result: BusinessResult) -> None:
     """Display results to user.""" 
     raise NotImplementedError("Display logic needed")
 
+```
+
+# In it's own file separate from any other code (this is currently to avoid a limitation in the Jitter implementation that causes hot reloading not to work as expected in the same module that entered the Jitter handler).
+```python
+from jitter import Jitter
+from foo import main
+
 if __name__ == "__main__":
-    with handler.not_implemented_handler():
+    with Jitter():
         main()
 ```
 
@@ -754,7 +760,7 @@ def process_input(raw_input: UserInput) -> ProcessedInput:
 
 ### Step 4: Run and Implement Incrementally
 
-1. **Run your program** within `not_implemented_handler()`
+1. **Run your program** within `Jitter()`
 2. **First NotImplementedError** is caught - Jitter shows you the call context
 3. **Choose implementation**: AI-generated or manual
 4. **Review and approve** the generated implementation
@@ -857,7 +863,7 @@ def test():
     raise NotImplementedError("Test implementation needed")
 
 if __name__ == "__main__":
-    with handler.not_implemented_handler():
+    with Jitter():
         test()
 ```
 
