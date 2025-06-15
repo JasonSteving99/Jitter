@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 from jitter.generation.llm import call_llm
 from jitter.generation.types import GeneratedImplementation
 from jitter.generation.vscode_function_diff import show_vscode_function_diff_and_get_changes
-from jitter.source_manipulation.inspection import FunctionLocation, get_function_lines
+from jitter.source_manipulation.inspection import CustomTypeInfo, FunctionLocation, get_function_lines
 
 
 class UserDeclinedImplementation(Exception):
@@ -89,41 +89,41 @@ def get_llm_implementation_suggestion(func: Callable[..., Any], call_stack: list
     # Get argument type information for the target function
     try:
         func_location = get_function_lines(func)
-        argument_types_context = ""
-
-        # Collect all custom types from arguments
-        all_custom_types = {}
+        
+        # Collect ALL custom types from all sources
+        all_custom_types: dict[str, CustomTypeInfo] = {}
+        
+        # From function arguments
         for arg in func_location.arguments:
             for custom_type in arg.custom_types:
                 if custom_type.name not in all_custom_types and custom_type.source_code:
                     all_custom_types[custom_type.name] = custom_type
 
-        # Collect all custom types from return type
-        return_custom_types = {}
+        # From function return type
         for custom_type in func_location.return_type.custom_types:
-            if custom_type.name not in return_custom_types and custom_type.source_code:
-                return_custom_types[custom_type.name] = custom_type
+            if custom_type.name not in all_custom_types and custom_type.source_code:
+                all_custom_types[custom_type.name] = custom_type
 
+        # From @-referenced functions
+        for ref in func_location.references:
+            for custom_type in ref.custom_types:
+                if custom_type.name not in all_custom_types and custom_type.source_code:
+                    all_custom_types[custom_type.name] = custom_type
+
+        # Create unified type definitions section
+        types_context = ""
         if all_custom_types:
-            argument_types_context += "\n\nARGUMENT TYPE DEFINITIONS:\n"
-            argument_types_context += "The function uses these custom types in its arguments:\n\n"
+            types_context += "\n\nTYPE DEFINITIONS:\n"
+            types_context += "The following custom types are used by this function (arguments, return type, or referenced functions):\n\n"
 
             for type_name, custom_type in all_custom_types.items():
-                argument_types_context += f"--- {type_name} (from {custom_type.filename}:{custom_type.start_line}-{custom_type.end_line}) ---\n"
-                argument_types_context += custom_type.source_code
-                argument_types_context += "\n"
-
-        if return_custom_types:
-            argument_types_context += "\n\nRETURN TYPE DEFINITIONS:\n"
-            argument_types_context += "The function returns these custom types:\n\n"
-            
-            for type_name, custom_type in return_custom_types.items():
-                argument_types_context += f"--- {type_name} (from {custom_type.filename}:{custom_type.start_line}-{custom_type.end_line}) ---\n"
-                argument_types_context += custom_type.source_code
-                argument_types_context += "\n"
+                types_context += f"--- {type_name} (from {custom_type.filename}:{custom_type.start_line}-{custom_type.end_line}) ---\n"
+                types_context += cast(str, custom_type.source_code)
+                types_context += "\n"
+                
     except Exception:
-        # If we can't get argument info, continue without it
-        argument_types_context = ""
+        # If we can't get type info, continue without it
+        types_context = ""
 
     # Get implementation references information for the target function
     try:
@@ -164,22 +164,6 @@ def get_llm_implementation_suggestion(func: Callable[..., Any], call_stack: list
                 references_context += cast(str, ref.source_code)
                 references_context += "\n"
 
-        # Collect custom types from @-referenced functions
-        reference_custom_types = {}
-        for ref in func_location.references:
-            for custom_type in ref.custom_types:
-                if custom_type.name not in reference_custom_types and custom_type.source_code:
-                    reference_custom_types[custom_type.name] = custom_type
-
-        # Add custom types from @-referenced functions
-        if reference_custom_types:
-            references_context += "\n\nREFERENCED FUNCTION TYPE DEFINITIONS:\n"
-            references_context += "The @-referenced functions use these custom types:\n\n"
-            
-            for type_name, custom_type in reference_custom_types.items():
-                references_context += f"--- {type_name} (from {custom_type.filename}:{custom_type.start_line}-{custom_type.end_line}) ---\n"
-                references_context += custom_type.source_code
-                references_context += "\n"
     except Exception:
         # If we can't get reference info, continue without it
         references_context = ""
@@ -190,7 +174,7 @@ def get_llm_implementation_suggestion(func: Callable[..., Any], call_stack: list
     if func.__doc__:
         call_stack_context += f"Function docstring: {func.__doc__}\n"
 
-    call_stack_context += argument_types_context
+    call_stack_context += types_context
     call_stack_context += references_context
 
     call_stack_context += "\n\nCALL STACK CONTEXT:\n"
