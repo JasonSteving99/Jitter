@@ -1,6 +1,6 @@
 [project]
 name = "jitter-llm"
-version = "0.3.1"
+version = "0.3.2"
 description = "Build your program Just-in-Time with LLM Assistance"
 readme = "README.md"
 requires-python = ">=3.10"
