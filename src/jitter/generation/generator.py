@@ -163,6 +163,23 @@ def get_llm_implementation_suggestion(func: Callable[..., Any], call_stack: list
                     references_context += f"--- {ref.raw_reference} (module from {ref.filename}) - Use as: {usage} ---\n"
                 references_context += cast(str, ref.source_code)
                 references_context += "\n"
+
+        # Collect custom types from @-referenced functions
+        reference_custom_types = {}
+        for ref in func_location.references:
+            for custom_type in ref.custom_types:
+                if custom_type.name not in reference_custom_types and custom_type.source_code:
+                    reference_custom_types[custom_type.name] = custom_type
+
+        # Add custom types from @-referenced functions
+        if reference_custom_types:
+            references_context += "\n\nREFERENCED FUNCTION TYPE DEFINITIONS:\n"
+            references_context += "The @-referenced functions use these custom types:\n\n"
+            
+            for type_name, custom_type in reference_custom_types.items():
+                references_context += f"--- {type_name} (from {custom_type.filename}:{custom_type.start_line}-{custom_type.end_line}) ---\n"
+                references_context += custom_type.source_code
+                references_context += "\n"
     except Exception:
         # If we can't get reference info, continue without it
         references_context = ""

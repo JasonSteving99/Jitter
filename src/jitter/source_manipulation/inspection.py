@@ -29,6 +29,7 @@ class ReferenceInfo(NamedTuple):
     start_line: int | None   # Start line if available
     end_line: int | None     # End line if available
     error_message: str | None  # Error message if resolution failed
+    custom_types: list[CustomTypeInfo]  # Custom types from function signature if target is a function
 
 
 class ArgumentInfo(NamedTuple):
@@ -86,6 +87,22 @@ def _resolve_reference(raw_reference: str) -> ReferenceInfo:
                     source_code = ''.join(source_lines)
                     end_line = start_line + len(source_lines) - 1
                     
+                    # Extract custom types if target is a function
+                    custom_types = []
+                    if inspect.isfunction(target_obj) or inspect.ismethod(target_obj):
+                        try:
+                            # Extract argument types
+                            args_info = _extract_function_arguments(target_obj)
+                            for arg in args_info:
+                                custom_types.extend(arg.custom_types)
+                            
+                            # Extract return type
+                            return_info = _extract_function_return_type(target_obj)
+                            custom_types.extend(return_info.custom_types)
+                        except Exception:
+                            # If type extraction fails, continue without custom types
+                            pass
+                    
                     return ReferenceInfo(
                         raw_reference=raw_reference,
                         module_path=module_path,
@@ -95,7 +112,8 @@ def _resolve_reference(raw_reference: str) -> ReferenceInfo:
                         filename=filename,
                         start_line=start_line,
                         end_line=end_line,
-                        error_message=None
+                        error_message=None,
+                        custom_types=custom_types
                     )
                 except (TypeError, OSError):
                     # Can't get source (built-in, dynamically created, etc.)
@@ -108,7 +126,8 @@ def _resolve_reference(raw_reference: str) -> ReferenceInfo:
                         filename=None,
                         start_line=None,
                         end_line=None,
-                        error_message=None
+                        error_message=None,
+                        custom_types=[]
                     )
             except AttributeError:
                 return ReferenceInfo(
@@ -120,7 +139,8 @@ def _resolve_reference(raw_reference: str) -> ReferenceInfo:
                     filename=None,
                     start_line=None,
                     end_line=None,
-                    error_message=f"Module {module_path} has no attribute {target_name}"
+                    error_message=f"Module {module_path} has no attribute {target_name}",
+                    custom_types=[]
                 )
         else:
             # Module-only reference
@@ -139,7 +159,8 @@ def _resolve_reference(raw_reference: str) -> ReferenceInfo:
                     filename=filename,
                     start_line=start_line,
                     end_line=end_line,
-                    error_message=None
+                    error_message=None,
+                    custom_types=[]
                 )
             except (TypeError, OSError):
                 # Can't get file info or source (built-in module, C extension, etc.)
@@ -152,7 +173,8 @@ def _resolve_reference(raw_reference: str) -> ReferenceInfo:
                     filename=None,
                     start_line=None,
                     end_line=None,
-                    error_message=None
+                    error_message=None,
+                    custom_types=[]
                 )
                 
     except ImportError:
@@ -165,7 +187,8 @@ def _resolve_reference(raw_reference: str) -> ReferenceInfo:
             filename=None,
             start_line=None,
             end_line=None,
-            error_message=f"Could not import module {module_path}"
+            error_message=f"Could not import module {module_path}",
+            custom_types=[]
         )
 
 
