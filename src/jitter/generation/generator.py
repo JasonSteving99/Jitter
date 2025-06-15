@@ -98,11 +98,26 @@ def get_llm_implementation_suggestion(func: Callable[..., Any], call_stack: list
                 if custom_type.name not in all_custom_types and custom_type.source_code:
                     all_custom_types[custom_type.name] = custom_type
 
+        # Collect all custom types from return type
+        return_custom_types = {}
+        for custom_type in func_location.return_type.custom_types:
+            if custom_type.name not in return_custom_types and custom_type.source_code:
+                return_custom_types[custom_type.name] = custom_type
+
         if all_custom_types:
             argument_types_context += "\n\nARGUMENT TYPE DEFINITIONS:\n"
             argument_types_context += "The function uses these custom types in its arguments:\n\n"
 
             for type_name, custom_type in all_custom_types.items():
+                argument_types_context += f"--- {type_name} (from {custom_type.filename}:{custom_type.start_line}-{custom_type.end_line}) ---\n"
+                argument_types_context += custom_type.source_code
+                argument_types_context += "\n"
+
+        if return_custom_types:
+            argument_types_context += "\n\nRETURN TYPE DEFINITIONS:\n"
+            argument_types_context += "The function returns these custom types:\n\n"
+            
+            for type_name, custom_type in return_custom_types.items():
                 argument_types_context += f"--- {type_name} (from {custom_type.filename}:{custom_type.start_line}-{custom_type.end_line}) ---\n"
                 argument_types_context += custom_type.source_code
                 argument_types_context += "\n"
