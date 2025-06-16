@@ -169,7 +169,7 @@ wheels = [
 
 [[package]]
 name = "jitter-llm"
-version = "0.1.0"
+version = "0.3.2"
 source = { editable = "../" }
 dependencies = [
     { name = "google-genai" },
@@ -178,11 +178,12 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "claude-code-sdk", marker = "extra == 'claude'", specifier = ">=0.0.10" },
+    { name = "asyncclick", marker = "extra == 'cli'", specifier = ">=8.1.8" },
+    { name = "claude-code-sdk", marker = "extra == 'cli'", specifier = ">=0.0.10" },
     { name = "google-genai", specifier = ">=1.19.0" },
     { name = "pydantic", specifier = ">=2.11.5" },
 ]
-provides-extras = ["claude"]
+provides-extras = ["cli"]
 
 [package.metadata.requires-dev]
 dev = [
