@@ -1,6 +1,6 @@
 # Why Does Jitter Exist?
 
-Jitter is fundamentally an experiment in what a __programming language__ might look like if designed with an LLM-based development cycle in mind? Yes, Jitter is currently Python-lib-shaped, but this is largely just a hack to rush experimentally to the heart of the question of whether (or, how useful it would be for) a hypothetical language could leverage its wealth of knowledge of your program to squeeze every last drop out of LLM coding capabilities before even resorting to making our LLMs "agentic".
+Jitter is fundamentally an experiment around the question "what a __programming language__ might look like if designed with an LLM-based development cycle in mind?" Yes, Jitter is currently Python-lib-shaped, but this is largely just a hack to rush experimentally to the heart of the question of whether or, how useful it would be, for a hypothetical language to leverage its wealth of knowledge of your program to squeeze every last drop out of LLM coding capabilities **before even resorting to making our LLMs "agentic"**.
 
 # Mental Model Building vs Prompt Engineering: Spot the Difference
 
